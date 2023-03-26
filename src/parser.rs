@@ -60,6 +60,7 @@ impl JsonParser {
             '{' => self.parse_object(),
             _ => Err(JsonError::BadCharacter(format!("from_str_helper {c}")))
         };
+        self.parse_whitespace();
 
         return result;
     }
@@ -71,7 +72,6 @@ impl JsonParser {
             let c = self.json_vec[self.pos];
             if c == '"' {
                 self.pos += 1;
-                self.parse_whitespace();
                 return Ok(JsonEnum::String(JsonString {value: s}));
             }
 
@@ -100,12 +100,10 @@ impl JsonParser {
             match self.json_vec[self.pos] {
                 ']' => {
                     self.pos += 1;
-                    self.parse_whitespace();
                     break;
                 },
                 ',' => {
                     self.pos += 1;
-                    self.parse_whitespace();
                     continue;
                 },
                  x => return Err(JsonError::BadCharacter(format!("parse_array: {x}")))
@@ -140,12 +138,10 @@ impl JsonParser {
             match self.json_vec[self.pos] {
                 '}' => {
                     self.pos += 1;
-                    self.parse_whitespace();
                     break;
                 },
                 ',' => {
                     self.pos += 1;
-                    self.parse_whitespace();
                     continue;
                 },
                  x => return Err(JsonError::BadCharacter(format!("parse_object: {x}")))
