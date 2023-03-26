@@ -3,9 +3,14 @@ mod parser;
 mod test;
 
 fn main() {
-    println!("Hello, world!");
-    let json_str = "[\"one\"   ,\"2\"   ]".to_string();
-    let mut js_parser = parser::JsonParser { raw_json: json_str, json_vec: vec![], len: 0, pos: 0 };
+    let json_str = "
+    {
+        \"123\": {\"key1\": [\"456\", \"chortle\"]},
+        \"789\": \"101112\",
+        \"131415\": \"161718\"
+    }
+        ";
+    let mut js_parser = parser::JsonParser { raw_json: json_str.to_string(), json_vec: vec![], len: 0, pos: 0 };
     let res = js_parser.from_str();
     //let to_string = parser::to_str(&res);
     dbg!("{}", res);

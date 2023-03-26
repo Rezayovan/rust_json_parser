@@ -1,10 +1,5 @@
 use core::fmt;
-use std::fmt::Display;
 use std::error::Error;
-use std::iter::TakeWhile;
-use std::ops::Index;
-use std::str::FromStr;
-use std::str::Chars;
 
 
 #[derive(Debug)]
@@ -27,7 +22,6 @@ pub struct JsonNumber {
     pub value: f64
 }
 
-const QUOTE_OPERATOR: char = '"';
 
 #[derive(Debug)]
 pub enum JsonEnum {
@@ -51,42 +45,33 @@ impl JsonParser {
         self.pos = 0;
         self.json_vec = self.raw_json.chars().collect();
         self.len = self.json_vec.len();
+        self.parse_whitespace();
         return self.from_str_helper();
     }
 
     pub fn from_str_helper(&mut self) -> Result<JsonEnum, JsonError>{
-        let mut result = Ok(JsonEnum::Empty);
+        let result: Result<JsonEnum, JsonError> = Ok(JsonEnum::Empty);
 
-        while self.pos < self.len {
-            let c = self.json_vec[self.pos];
-            if c == ' ' || c == '\n' {
-                self.pos += 1;
-                continue;
-            }
+        let c = self.json_vec[self.pos];
 
-            self.pos += 1;
-
-            let result = match c {
-                '"' => self.parse_string(),
-                '[' => self.parse_array(),
-                '{' => self.parse_object(),
-                ' ' => continue,
-                _ => Err(JsonError::BadCharacter(String::from(c)))
-            };
-
-            return result;
-        }
+        let result = match c {
+            '"' => self.parse_string(),
+            '[' => self.parse_array(),
+            '{' => self.parse_object(),
+            _ => Err(JsonError::BadCharacter(format!("from_str_helper {c}")))
+        };
 
         return result;
     }
 
     fn parse_string(&mut self) -> Result<JsonEnum, JsonError> {
-        println!("parsing str");
         let mut s = "".to_string();
+        self.pos += 1; // opening quotation
         while self.pos < self.len {
             let c = self.json_vec[self.pos];
             if c == '"' {
                 self.pos += 1;
+                self.parse_whitespace();
                 return Ok(JsonEnum::String(JsonString {value: s}));
             }
 
@@ -95,54 +80,90 @@ impl JsonParser {
         }
 
         // this should be an error since we finished string without ending quote
-        return Err(JsonError::NoClosingChar("'\"' needed".to_string()));
+        return Err(JsonError::NoClosingChar(format!("parse_string, '\"' needed. string is {s}")));
     }
 
     fn parse_array(&mut self) -> Result<JsonEnum, JsonError> {
         let mut json_arr: Vec<JsonEnum> = Vec::new();
+        
+        self.pos += 1; // opening bracket
         while self.pos < self.len {
+            self.parse_whitespace();
             let c = self.json_vec[self.pos];
-            if c == ' ' {
-                self.pos += 1;
-                continue;
-            }
             if c == ']' {
                 break;
             }
-
             json_arr.push(self.from_str_helper()?);
 
             // need to get end or comma
-            while self.pos < self.len {
-                let e = self.json_vec[self.pos];
-                if e == ']' || e == ',' {
+            self.parse_whitespace();
+            match self.json_vec[self.pos] {
+                ']' => {
                     self.pos += 1;
+                    self.parse_whitespace();
                     break;
-                }
-                if e == ' ' || e == '\n' {
+                },
+                ',' => {
                     self.pos += 1;
+                    self.parse_whitespace();
                     continue;
-                }
-
-                dbg!(&self.json_vec[self.pos]);
-                dbg!(self.pos);
-                return Err(JsonError::BadCharacter(format!("{e}")));
+                },
+                 x => return Err(JsonError::BadCharacter(format!("parse_array: {x}")))
             }
         }
-
         return Ok(JsonEnum::Array(JsonArray { objects: json_arr }));
     }
 
-    fn parse_object(&self) -> Result<JsonEnum, JsonError> {
-        let mut objects: Vec<(String, JsonEnum)> = Vec::new();
+    fn parse_object(&mut self) -> Result<JsonEnum, JsonError> {
+        let mut object_vec: Vec<(String, JsonEnum)> = Vec::new();
+        
         while self.pos < self.len {
+            self.pos += 1;
+            self.parse_whitespace();
+            let key = match self.parse_string()? {
+                JsonEnum::String(x) => x,
+                _ => return Err(JsonError::BadCharacter(format!("parse_object: shouldnt get here")))
+            };
+            let res = match self.json_vec[self.pos] {
+                ':' => {
+                    self.pos += 1;
+                    self.parse_whitespace();
+                    self.from_str_helper()?
+                },
+                x => return Err(JsonError::BadCharacter(format!("parse_object, expected ':', got {x}")))
+            };
             
+            object_vec.push((key.value, res));
+
+            // need to get end or comma
+            dbg!(&object_vec);
+            match self.json_vec[self.pos] {
+                '}' => {
+                    self.pos += 1;
+                    self.parse_whitespace();
+                    break;
+                },
+                ',' => {
+                    self.pos += 1;
+                    self.parse_whitespace();
+                    continue;
+                },
+                 x => return Err(JsonError::BadCharacter(format!("parse_object: {x}")))
+            }
         }
-        return Ok(JsonEnum::Empty);
+        return Ok(JsonEnum::Object(JsonObject { objects: object_vec }));
     }
 
     fn parse_number(&self) -> Result<JsonEnum, JsonError> {
         return Ok(JsonEnum::Empty);
+    }
+
+    fn parse_whitespace(&mut self) {
+        let mut c = self.json_vec[self.pos];
+        while self.pos < self.len - 1 && (c == ' ' || c == '\n') {
+            self.pos += 1;
+            c = self.json_vec[self.pos];
+        }
     }
 }
 
@@ -151,7 +172,7 @@ impl JsonParser {
 #[derive(Debug)]
 pub enum JsonError {
     BadCharacter(String),
-    NoClosingChar(String)
+    NoClosingChar(String),
 }
 
 impl fmt::Display for JsonError {
