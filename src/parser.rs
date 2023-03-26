@@ -3,32 +3,11 @@ use std::error::Error;
 
 
 #[derive(Debug)]
-pub struct JsonObject {
-    pub objects: Vec<(String, JsonEnum)>
-}
-
-#[derive(Debug)]
-pub struct JsonArray {
-    pub objects: Vec<JsonEnum>,
-}
-
-#[derive(Debug)]
-pub struct JsonString {
-    pub value: String
-}
-
-#[derive(Debug)]
-pub struct JsonNumber {
-    pub value: f64
-}
-
-
-#[derive(Debug)]
 pub enum JsonEnum {
-    Object(JsonObject),
-    Array(JsonArray),
-    String(JsonString),
-    Number(JsonNumber),
+    Object(Vec<(String, JsonEnum)>),
+    Array(Vec<JsonEnum>),
+    String(String),
+    Number(f32),
     Empty
 }
 
@@ -72,7 +51,7 @@ impl JsonParser {
             let c = self.json_vec[self.pos];
             if c == '"' {
                 self.pos += 1;
-                return Ok(JsonEnum::String(JsonString {value: s}));
+                return Ok(JsonEnum::String(s));
             }
 
             s.push(c);
@@ -109,7 +88,7 @@ impl JsonParser {
                  x => return Err(JsonError::BadCharacter(format!("parse_array: {x}")))
             }
         }
-        return Ok(JsonEnum::Array(JsonArray { objects: json_arr }));
+        return Ok(JsonEnum::Array(json_arr));
     }
 
     fn parse_object(&mut self) -> Result<JsonEnum, JsonError> {
@@ -131,7 +110,7 @@ impl JsonParser {
                 x => return Err(JsonError::BadCharacter(format!("parse_object, expected ':', got {x}")))
             };
             
-            object_vec.push((key.value, res));
+            object_vec.push((key, res));
 
             // need to get end or comma
             dbg!(&object_vec);
@@ -147,7 +126,7 @@ impl JsonParser {
                  x => return Err(JsonError::BadCharacter(format!("parse_object: {x}")))
             }
         }
-        return Ok(JsonEnum::Object(JsonObject { objects: object_vec }));
+        return Ok(JsonEnum::Object(object_vec));
     }
 
     fn parse_number(&self) -> Result<JsonEnum, JsonError> {
@@ -186,12 +165,12 @@ pub fn to_str(json: &JsonEnum) -> String {
     return match json {
         JsonEnum::Object(o) => "object undefined".to_string(),
         JsonEnum::Array(o) => "array undefined".to_string(),
-        JsonEnum::Number(o) => o.value.to_string(),
+        JsonEnum::Number(o) => o.to_string(),
         JsonEnum::Empty => "empty".to_string(),
         JsonEnum::String(o) => {
             let mut owned_string = "".to_owned();
             owned_string.push_str("\"");
-            owned_string.push_str(&o.value);
+            owned_string.push_str(&o);
             owned_string.push_str("\"");
             return owned_string;
         },
